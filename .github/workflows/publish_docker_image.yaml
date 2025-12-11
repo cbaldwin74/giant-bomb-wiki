@@ -8,7 +8,7 @@ env:
 
 jobs:
   set-branch-name-env:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Extract branch name and set as environment variable
@@ -17,11 +17,11 @@ jobs:
         shell: bash
 
   validate-branch-for-image:
-    uses: ./.github/workflows/test_e22.yaml
+    uses: ./.github/workflows/test_e2e.yaml
 
   build-and-push-image:
     needs: validate-branch-for-image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     # Sets the permissions granted to the GITHUB_TOKEN for the actions in this job.
     permissions:
