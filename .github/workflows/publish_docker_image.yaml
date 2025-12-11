@@ -1,0 +1,114 @@
+name: Build and Publish Docker Image
+
+on: [workflow_dispatch]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  set-branch-name-env:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract branch name and set as environment variable
+        id: extract_branch # Give the step an ID to reference its output
+        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        shell: bash
+
+  validate-branch-for-image:
+    uses: ./.github/workflows/test_e22.yaml
+
+  build-and-push-image:
+    needs: validate-branch-for-image
+    runs-on: ubuntu-latest
+
+    # Sets the permissions granted to the GITHUB_TOKEN for the actions in this job.
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      # Log in to the Container registry registry using the account and password that will publish the packages.
+      # Once published, the packages are scoped to the account defined here.
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract tags and labels that will be applied to the specified image.
+      # The id "meta" allows the output of this step to be referenced in a subsequent step.
+      # The images value provides the base name for the tags and labels.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Create the .env file the installation will require
+        run: |
+          echo "MARIADB_DATABASE: gb_wiki_ci" >> .env
+          echo "MARIADB_API_DUMP_DATABASE=gb_api_dump" >> .env
+          echo "MARIADB_USER=wiki_admin_ci" >> .env
+          echo "MARIADB_PASSWORD=test.password.ci" >> .env
+          echo "MARIADB_ROOT_PASSWORD: gb_root_ci" >> .env
+          echo "MW_SITE_SERVER=http://localhost:8080" >> .env
+          echo "MW_SCRIPT_PATH=\"\"" >> .env
+          echo "MW_SITE_NAME=\"Giant Bomb Wiki\"" >> .env
+          echo "MW_DB_HOST=db" >> .env
+          echo "MW_DB_NAME=gb_wiki_ci" >> .env
+          echo "MW_DB_USER=giantbomb.ci" >> .env
+          echo "MW_PASS=gbwikipass.ci" >> .env
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
+      - name: Install pnpm explicitly
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Node.js to use the cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+          cache: "pnpm"
+
+      - name: Install pnpm and dependencies
+        run: pnpm install
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true # Load the image just built so it won't get re-built with docker compose up
+          cache-from: type=gha # github action cache
+          cache-to: type=gha,mode=max
+
+      - name: Start every service, install the wiki
+        run: |
+          docker compose up --build -d
+          docker exec giant-bomb-wiki-wiki-1 /bin/bash /installwiki.sh
+          docker compose stop
+
+      - name: Publish the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          load: false
+          cache-from: type=gha # github action cache
+          cache-to: type=gha,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
