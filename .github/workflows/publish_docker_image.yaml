@@ -8,7 +8,7 @@ env:
 
 jobs:
   set-branch-name-env:
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Extract branch name and set as environment variable
