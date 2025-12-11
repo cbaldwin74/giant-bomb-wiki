@@ -8,7 +8,7 @@ env:
 
 jobs:
   set-branch-name-env:
-    runs-on: ubuntu-latest
+  runs-on: ubuntu-latest
 
     steps:
       - name: Extract branch name and set as environment variable
@@ -17,7 +17,7 @@ jobs:
         shell: bash
 
   validate-branch-for-image:
-    uses: ./.github/workflows/test_e22.yaml
+    uses: ./.github/workflows/test_e2e.yaml
 
   build-and-push-image:
     needs: validate-branch-for-image
