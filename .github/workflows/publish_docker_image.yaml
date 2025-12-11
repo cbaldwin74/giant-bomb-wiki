@@ -7,15 +7,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  set-branch-name-env:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Extract branch name and set as environment variable
-        id: extract_branch # Give the step an ID to reference its output
-        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
-        shell: bash
-
   validate-branch-for-image:
     uses: ./.github/workflows/test_e2e.yaml
 
