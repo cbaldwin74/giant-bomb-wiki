@@ -96,7 +96,7 @@ jobs:
       - name: Publish the image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./Dockerfile.prod
           push: true
           load: false
           cache-from: type=gha # github action cache
